@@ -1,123 +1,77 @@
-#!/usr/bin/env python3
 """
-generate_edl.py — クリーンセグメントから CMX 3600 EDL を生成
-
-detect_fillers.py の出力 (clean_segments.json) から
-DaVinci Resolve にインポート可能な EDL ファイルを生成する。
+generate_edl.py
+clean_segments.json から CMX 3600 EDL を生成する。
 
 Usage:
-    python generate_edl.py clean_segments.json --fps 24 --output clean_edit.edl
-    python generate_edl.py clean_segments.json --fps 23.976 --title "MyProject"
+    python scripts/generate_edl.py clean_segments.json --source test --output edl/clean_edit.edl --fps 24
 """
 
-import json
 import argparse
-import math
+import json
+import os
 from pathlib import Path
 
 
-def seconds_to_timecode(seconds: float, fps: float) -> str:
-    """秒数をSMPTEタイムコード (HH:MM:SS:FF) に変換"""
-    total_frames = int(round(seconds * fps))
-    ff = total_frames % int(fps)
-    total_seconds = total_frames // int(fps)
-    ss = total_seconds % 60
-    total_minutes = total_seconds // 60
-    mm = total_minutes % 60
-    hh = total_minutes // 60
-    return f"{hh:02d}:{mm:02d}:{ss:02d}:{ff:02d}"
+def seconds_to_tc(seconds: float, fps: float) -> str:
+    """秒をタイムコード HH:MM:SS:FF に変換する。"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    f = int((seconds % 1) * fps)
+    return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
 
 
-def generate_edl(
-    segments: list[dict],
-    fps: float = 24.0,
-    title: str = "CleanEdit",
-    source_name: str = "source"
-) -> str:
-    """
-    セグメントリストから CMX 3600 EDL を生成。
-    
-    Args:
-        segments: clean_segments.json の "segments" リスト
-        fps: フレームレート
-        title: EDLタイトル
-        source_name: ソースクリップ名（リールネーム）
-    
-    Returns:
-        EDL文字列
-    """
-    lines = []
-    lines.append(f"TITLE: {title}")
-    lines.append(f"FCM: NON-DROP FRAME")
-    lines.append("")
+def generate_edl(segments: list[dict], *, source: str, fps: float,
+                 title: str = "FILLER_REMOVED") -> str:
+    reel = Path(source).stem
+    clip_name = source if "." in source else f"{source}.wav"
 
-    # レコードタイムコードは 01:00:00:00 開始（業界標準）
-    record_offset = 3600.0  # 1時間
+    lines = [
+        f"TITLE: {title}",
+        "FCM: NON-DROP FRAME",
+        "",
+    ]
 
-    current_record = record_offset
+    rec_offset = 0.0
+    for i, seg in enumerate(segments, 1):
+        start, end = seg["start"], seg["end"]
+        src_in = seconds_to_tc(start, fps)
+        src_out = seconds_to_tc(end, fps)
+        rec_in = seconds_to_tc(rec_offset, fps)
+        rec_out = seconds_to_tc(rec_offset + (end - start), fps)
 
-    for i, seg in enumerate(segments):
-        edit_num = i + 1
-        src_start = seg["start"]
-        src_end = seg["end"]
-        duration = src_end - src_start
-
-        src_in = seconds_to_timecode(src_start, fps)
-        src_out = seconds_to_timecode(src_end, fps)
-        rec_in = seconds_to_timecode(current_record, fps)
-        rec_out = seconds_to_timecode(current_record + duration, fps)
-
-        # 8文字のリールネーム（CMX 3600仕様）
-        reel = source_name[:8].ljust(8)
-
-        # EDLイベント行: EDIT# REEL TRACK TRANS SRC_IN SRC_OUT REC_IN REC_OUT
-        lines.append(f"{edit_num:03d}  {reel} V     C        {src_in} {src_out} {rec_in} {rec_out}")
-
-        current_record += duration
+        lines.append(f"{i:03d}  {reel:<8s} AA/V  C        {src_in} {src_out} {rec_in} {rec_out}")
+        lines.append(f"* FROM CLIP NAME: {clip_name}")
+        rec_offset += end - start
 
     lines.append("")
     return "\n".join(lines)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="クリーンセグメントからEDLを生成")
+    parser = argparse.ArgumentParser(description="clean_segments.json から EDL を生成")
     parser.add_argument("input", help="clean_segments.json のパス")
-    parser.add_argument("--fps", type=float, default=24.0,
-                        help="フレームレート (default: 24.0)")
-    parser.add_argument("--title", default="CleanEdit",
-                        help="EDLタイトル (default: CleanEdit)")
-    parser.add_argument("--source", default="source",
-                        help="ソースクリップ名/リールネーム")
-    parser.add_argument("--output", "-o", help="出力EDLファイルパス")
+    parser.add_argument("--source", required=True, help="ソース名（リール名/クリップ名）")
+    parser.add_argument("--output", default="edl/clean_edit.edl", help="出力EDLパス")
+    parser.add_argument("--fps", type=float, default=24.0, help="フレームレート")
+    parser.add_argument("--title", default="FILLER_REMOVED", help="EDLタイトル")
     args = parser.parse_args()
 
-    # 読み込み
-    with open(args.input, "r", encoding="utf-8") as f:
+    with open(args.input, encoding="utf-8") as f:
         data = json.load(f)
 
-    segments = data.get("segments", [])
-    if not segments:
-        print("エラー: セグメントが空です", file=__import__("sys").stderr)
-        return
+    segments = data["clean_segments"]
+    edl_content = generate_edl(segments, source=args.source, fps=args.fps, title=args.title)
 
-    # EDL生成
-    edl_content = generate_edl(
-        segments=segments,
-        fps=args.fps,
-        title=args.title,
-        source_name=args.source
-    )
-
-    # 出力
-    output_path = args.output or args.input.replace("_clean.json", ".edl").replace(".json", ".edl")
-    with open(output_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    with open(args.output, "w", encoding="utf-8") as f:
         f.write(edl_content)
 
-    total_duration = sum(s["end"] - s["start"] for s in segments)
-    print(f"EDL生成完了: {output_path}")
-    print(f"  イベント数: {len(segments)}")
-    print(f"  総尺: {total_duration:.1f}秒")
-    print(f"  FPS: {args.fps}")
+    duration = data.get("duration", 0)
+    total_clean = sum(s["end"] - s["start"] for s in segments)
+    print(f"EDL生成: {args.output}")
+    print(f"  区間数: {len(segments)}, FPS: {args.fps}, ソース: {args.source}")
+    print(f"  元: {duration:.2f}s → 編集後: {total_clean:.2f}s")
 
 
 if __name__ == "__main__":

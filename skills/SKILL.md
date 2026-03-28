@@ -200,3 +200,4 @@ project/
 - `references/whisper_tips.md` — Whisper日本語運用Tips
 - `references/resolve_mcp_commands.md` — よく使うMCPコマンド集
 - `templates/project_structure.sh` — プロジェクトディレクトリ初期化スクリプト
+
