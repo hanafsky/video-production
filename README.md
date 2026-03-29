@@ -2,7 +2,7 @@
 
 Automated post-production pipeline for coding screencasts and YouTube content.
 
-Local Whisper transcription → Japanese filler removal (with Silero VAD) → EDL/SRT generation → DaVinci Resolve MCP integration.
+Local Whisper transcription → Filler removal (Japanese & English, with Silero VAD) → EDL/SRT generation → DaVinci Resolve MCP integration.
 
 ## Prerequisites
 
@@ -44,8 +44,18 @@ with open("transcripts/transcript.json", "w", encoding="utf-8") as f:
 
 ### 4. Detect and remove fillers
 
+**Japanese:**
+
 ```bash
 python skills/scripts/detect_fillers.py transcripts/transcript.json \
+    --wav audio/audio.wav \
+    --output transcripts/clean_segments.json
+```
+
+**English:**
+
+```bash
+python skills/scripts/detect_fillers_en.py transcripts/transcript.json \
     --wav audio/audio.wav \
     --output transcripts/clean_segments.json
 ```
@@ -69,7 +79,8 @@ Import the EDL via Resolve MCP or manually.
 skills/
 ├── SKILL.md                  # Claude Code skill definition
 ├── scripts/
-│   ├── detect_fillers.py     # Filler detection with Silero VAD
+│   ├── detect_fillers.py     # Japanese filler detection with Silero VAD
+│   ├── detect_fillers_en.py  # English filler detection with Silero VAD
 │   ├── generate_edl.py       # CMX 3600 EDL generation
 │   └── optimize_srt.py       # SRT optimization
 ├── references/

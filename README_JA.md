@@ -2,7 +2,7 @@
 
 コーディング動画・YouTubeコンテンツ向けの動画制作自動化パイプライン。
 
-ローカルWhisper文字起こし → 日本語フィラー除去（Silero VAD補正） → EDL/SRT生成 → DaVinci Resolve MCP連携。
+ローカルWhisper文字起こし → フィラー除去（日本語・英語対応、Silero VAD補正） → EDL/SRT生成 → DaVinci Resolve MCP連携。
 
 ## 前提環境
 
@@ -44,8 +44,18 @@ with open("transcripts/transcript.json", "w", encoding="utf-8") as f:
 
 ### 4. フィラー検出・除去
 
+**日本語:**
+
 ```bash
 python skills/scripts/detect_fillers.py transcripts/transcript.json \
+    --wav audio/audio.wav \
+    --output transcripts/clean_segments.json
+```
+
+**英語:**
+
+```bash
+python skills/scripts/detect_fillers_en.py transcripts/transcript.json \
     --wav audio/audio.wav \
     --output transcripts/clean_segments.json
 ```
@@ -69,7 +79,8 @@ Resolve MCP経由またはマニュアルでEDLをインポート。
 skills/
 ├── SKILL.md                  # Claude Code スキル定義
 ├── scripts/
-│   ├── detect_fillers.py     # フィラー検出（Silero VAD補正付き）
+│   ├── detect_fillers.py     # 日本語フィラー検出（Silero VAD補正付き）
+│   ├── detect_fillers_en.py  # 英語フィラー検出（Silero VAD補正付き）
 │   ├── generate_edl.py       # CMX 3600 EDL生成
 │   └── optimize_srt.py       # SRT最適化
 ├── references/

@@ -198,6 +198,7 @@ MCP operations:
 ## Reference
 
 - `scripts/detect_fillers.py` — Japanese filler detection with VAD correction
+- `scripts/detect_fillers_en.py` — English filler detection with VAD correction
 - `scripts/generate_edl.py` — Clean segments → CMX 3600 EDL
 - `scripts/optimize_srt.py` — SRT optimization
 - `references/whisper_tips.md` — Whisper tips for Japanese
