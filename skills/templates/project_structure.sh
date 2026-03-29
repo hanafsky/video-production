@@ -1,5 +1,5 @@
 #!/bin/bash
-# project_structure.sh — 動画プロジェクトのディレクトリ構造を初期化
+# project_structure.sh — Scaffold a video project directory
 #
 # Usage:
 #   bash project_structure.sh "MyVideoProject"
@@ -9,36 +9,36 @@ PROJECT_NAME="${1:-MyProject}"
 DATE="${2:-$(date +%Y-%m-%d)}"
 BASE_DIR="${PROJECT_NAME}_${DATE}"
 
-echo "📁 プロジェクト作成: ${BASE_DIR}"
+echo "Creating project: ${BASE_DIR}"
 
 mkdir -p "${BASE_DIR}"/{raw,audio,transcripts,edl,subtitles,exports}
 
 cat > "${BASE_DIR}/README.md" << EOF
 # ${PROJECT_NAME}
 
-- 作成日: ${DATE}
-- ステータス: 収録前
+- Created: ${DATE}
+- Status: Pre-recording
 
-## ディレクトリ構成
+## Directory Layout
 
-- \`raw/\` — 収録素材 (.mov, .mp4)
-- \`audio/\` — 抽出した音声 (.wav)
-- \`transcripts/\` — 文字起こし結果 (.json, .txt)
-- \`edl/\` — 生成した EDL
-- \`subtitles/\` — 最適化済み SRT
-- \`exports/\` — 最終出力
+- \`raw/\`         — Source recordings (.mov, .mp4)
+- \`audio/\`       — Extracted audio (.wav)
+- \`transcripts/\` — Transcription results (.json, .txt)
+- \`edl/\`         — Generated EDL files
+- \`subtitles/\`   — Optimized SRT files
+- \`exports/\`     — Final rendered output
 
-## ワークフロー
+## Workflow
 
-1. \`raw/\` に収録素材を配置
+1. Place source recordings in \`raw/\`
 2. \`ffmpeg -i raw/input.mov -vn -acodec pcm_s16le -ar 16000 -ac 1 audio/audio.wav\`
-3. Whisper で文字起こし → \`transcripts/transcript.json\`
-4. フィラー検出 → \`transcripts/clean_segments.json\`
-5. EDL 生成 → \`edl/clean_edit.edl\`
-6. Resolve にインポート → 編集
-7. 字幕生成 → \`subtitles/subtitles.srt\`
-8. レンダリング → \`exports/\`
+3. Whisper transcription → \`transcripts/transcript.json\`
+4. Filler detection → \`transcripts/clean_segments.json\`
+5. EDL generation → \`edl/clean_edit.edl\`
+6. Import into Resolve → edit
+7. Subtitle generation → \`subtitles/subtitles.srt\`
+8. Render → \`exports/\`
 EOF
 
-echo "✅ 完了: ${BASE_DIR}/"
+echo "Done: ${BASE_DIR}/"
 ls -la "${BASE_DIR}/"

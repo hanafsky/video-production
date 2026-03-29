@@ -1,203 +1,205 @@
 ---
 name: video-production
 description: |
-  動画制作の自動化ワークフロースキル。Whisperによるローカル文字起こし、
-  日本語フィラーワード検出・除去、EDL/SRT生成、DaVinci Resolve MCP連携を統合。
-  devaslife風コーディング動画やYouTubeコンテンツの制作パイプラインを効率化する。
-  Use this skill when the user mentions: 動画制作, 動画編集, video editing, フィラー除去,
-  filler removal, 文字起こし, transcription, Whisper, EDL, SRT, 字幕,
-  DaVinci Resolve, Resolve MCP, devaslife, YouTube動画, コーディング動画,
-  タイムライン, timeline, カラーグレーディング, color grading, レンダリング,
-  または動画の収録・編集・公開に関連する作業を行う場合。
+  Video production automation skill. Integrates local Whisper transcription,
+  Japanese filler-word detection/removal with Silero VAD, EDL/SRT generation,
+  and DaVinci Resolve MCP control. Streamlines the post-production pipeline
+  for coding screencasts (devaslife-style) and YouTube content.
+  Use this skill when the user mentions: video editing, filler removal,
+  transcription, Whisper, EDL, SRT, subtitles, DaVinci Resolve, Resolve MCP,
+  timeline, color grading, rendering, or any recording/editing/publishing task.
   Also trigger when the user wants to automate post-production workflows,
   remove silence/filler from recordings, or generate subtitles from audio.
 ---
 
 # Video Production Skill
 
-動画制作パイプラインの自動化スキル。
-Whisper（ローカル）+ Claude Code + DaVinci Resolve MCP で、
-収録後の文字起こし → フィラー除去 → タイムライン生成 → エフェクト → 字幕 → レンダリング を効率化する。
+Automates the post-production pipeline:
+Whisper (local) + Claude Code + DaVinci Resolve MCP.
+Recording → Transcription → Filler removal → Timeline → Effects → Subtitles → Render.
 
-## 前提環境
+## Prerequisites
 
-- **macOS + Apple Silicon**（24GB Unified Memory → large-v3 使用可）
-- **DaVinci Resolve Studio 18.5+**（無料版は外部スクリプティング非対応）
-- **Python 3.10〜3.12**
-- **DaVinci Resolve MCP** が Claude Code に設定済み
+- **macOS + Apple Silicon** (24 GB Unified Memory — can run large-v3)
+- **DaVinci Resolve Studio 18.5+** (free version lacks external scripting)
+- **Python 3.10–3.12**
+- **DaVinci Resolve MCP** configured in Claude Code
 
-## 必要パッケージ（初回セットアップ）
+## Required Packages (first-time setup)
 
 ```bash
-pip install openai-whisper opentimelineio srt
-# macOS Apple Silicon の場合、ffmpeg も必要
+pip install openai-whisper opentimelineio srt torch
+# ffmpeg is also required on macOS
 brew install ffmpeg
 ```
 
-⚠️ パッケージインストールは人間が行う。AIは上記コマンドを提示して待つ。
+> Packages must be installed by the human. The AI presents the commands and waits.
 
-## 基本ルール
+## Core Rules
 
-### 1. 文字起こしはローカルWhisperで行う
+### 1. Transcription runs locally with Whisper
 
-APIキー不要。音声データが外部に送信されない。
+No API key required. Audio never leaves the machine.
 
 ```python
 import whisper
-model = whisper.load_model("large-v3")  # 24GB Mac なら OK
-result = model.transcribe("audio.wav", language="ja")
+model = whisper.load_model("large-v3")  # OK for 24 GB Mac
+result = model.transcribe("audio.wav", language="ja", word_timestamps=True)
 ```
 
-**モデル選択ガイド:**
-- `medium` — 高速、精度そこそこ。まず試す
-- `large-v3` — 高精度、日本語向き。24GB Mac推奨
-- `turbo` — 英語最適化。日本語には非推奨
+**Model selection guide:**
+- `medium` — fast, reasonable accuracy. Try first.
+- `large-v3` — highest accuracy for Japanese. Needs 24 GB.
+- `turbo` — optimized for English. Not recommended for Japanese.
 
-### 2. フィラー検出は scripts/detect_fillers.py を使う
+### 2. Filler detection uses `scripts/detect_fillers.py`
 
-詳細は `scripts/detect_fillers.py` を参照。
-日本語フィラーのパターンリストとWhisperセグメントの解析ロジックを含む。
+Detects Japanese fillers from Whisper's word-level timestamps, corrects
+boundaries with Silero VAD + energy analysis.
 
-### 3. EDL生成は scripts/generate_edl.py を使う
+### 3. EDL generation uses `scripts/generate_edl.py`
 
-フィラー除去後のセグメントからEDLファイルを生成。
-DaVinci Resolve にインポート可能な CMX 3600 形式。
+Produces a CMX 3600 EDL from clean segments. Importable by DaVinci Resolve.
 
-### 4. DaVinci Resolve MCP で操作する
+### 4. DaVinci Resolve is controlled via MCP
 
-Resolve の操作は MCP ツール経由で行う。直接 Python API は使わない。
+All Resolve operations go through MCP tools. Never use the Python API directly.
 
-### 5. SRT最適化は scripts/optimize_srt.py を使う
+### 5. SRT optimization uses `scripts/optimize_srt.py`
 
-Whisperの生SRT出力を校正・整形して、YouTube/動画用に最適化。
+Cleans up Whisper's raw SRT: fixes mis-conversions, adjusts line length
+(≤ 20 chars/line), merges short cues, removes fillers.
 
-## ワークフロー
+## Project Directory Layout
 
-### Phase 1: 音声抽出
+Each video project gets its own directory with **separate folders per artifact type**.
+Use `templates/project_structure.sh` to scaffold a new project.
 
-DaVinci Resolve MCP でタイムラインからWAVをレンダリング、
-または ffmpeg で動画ファイルから直接抽出：
+```
+<ProjectName>_<YYYY-MM-DD>/
+├── raw/            # Source recordings (.mov, .mp4)
+├── audio/          # Extracted audio (.wav) — mono 16 kHz PCM
+├── transcripts/    # Whisper output + filler analysis
+│   ├── transcript.json       # Raw Whisper JSON (word_timestamps)
+│   ├── clean_segments.json   # After filler removal
+│   └── fillers_report.txt    # Filler log for human review
+├── edl/            # Generated EDL files
+│   └── clean_edit.edl
+├── subtitles/      # Optimized SRT files
+│   └── subtitles.srt
+└── exports/        # Final rendered output
+    └── final_output.mp4
+```
+
+**Important:** Always write intermediate outputs to the correct subfolder.
+Never dump transcripts, EDLs, or SRTs into the project root.
+
+## Workflow
+
+### Phase 1: Audio Extraction
+
+Extract audio from video via DaVinci Resolve MCP or ffmpeg:
 
 ```bash
-ffmpeg -i input.mov -vn -acodec pcm_s16le -ar 16000 -ac 1 audio.wav
+ffmpeg -i raw/input.mov -vn -acodec pcm_s16le -ar 16000 -ac 1 audio/audio.wav
 ```
 
-ポイント: **モノラル・16kHz・Linear PCM** が Whisper に最適。
+Key: **Mono, 16 kHz, Linear PCM** is optimal for Whisper.
 
-### Phase 2: 文字起こし
+### Phase 2: Transcription
 
 ```python
-import whisper
-import json
+import whisper, json
 
 model = whisper.load_model("large-v3")
 result = model.transcribe(
-    "audio.wav",
+    "audio/audio.wav",
     language="ja",
-    word_timestamps=True,   # 単語レベルのタイムスタンプ
-    verbose=False
+    word_timestamps=True,
+    verbose=False,
 )
 
-# JSON保存（後続処理で使用）
-with open("transcript.json", "w", encoding="utf-8") as f:
+with open("transcripts/transcript.json", "w", encoding="utf-8") as f:
     json.dump(result, f, ensure_ascii=False, indent=2)
 ```
 
-### Phase 3: フィラー検出・除去
-
-`scripts/detect_fillers.py` を実行：
+### Phase 3: Filler Detection & Removal
 
 ```bash
-python scripts/detect_fillers.py transcript.json --output clean_segments.json
+python scripts/detect_fillers.py transcripts/transcript.json \
+    --wav audio/audio.wav \
+    --output transcripts/clean_segments.json
 ```
 
-出力:
-- `clean_segments.json` — フィラー除去済みセグメント
-- `fillers_report.txt` — 検出されたフィラーの一覧（レビュー用）
+Output:
+- `transcripts/clean_segments.json` — segments with fillers cut
+- Console report showing detected fillers and timestamp corrections
 
-**重要:** フィラーレポートは人間が確認する。完全自動化より最終チェック推奨。
+**Important:** Review the filler report before proceeding. Prefer human
+verification over full automation.
 
-### Phase 4: EDL生成
+### Phase 4: EDL Generation
 
 ```bash
-python scripts/generate_edl.py clean_segments.json --fps 24 --output clean_edit.edl
+python scripts/generate_edl.py transcripts/clean_segments.json \
+    --source raw/input.mov \
+    --output edl/clean_edit.edl \
+    --fps 24
 ```
 
-### Phase 5: Resolve にインポート（MCP経由）
+### Phase 5: Import into Resolve (MCP)
 
 ```
-MCP操作:
+MCP operations:
 1. create_timeline("CleanCut")
-2. EDL をインポート（MCP の timeline ツール経由）
-3. open_page("edit") で確認
+2. Import EDL via MCP timeline tools
+3. open_page("edit") to verify
 ```
 
-ResolveへのEDLインポート時の設定:
+Resolve EDL import setting:
 - Project Settings → Conform Options → "Assist using reel names from: Source clip filename"
 
-### Phase 6: エフェクト・カラグレ（MCP経由）
+### Phase 6: Effects & Color Grading (MCP)
 
 ```
-MCP操作例:
+MCP examples:
 - open_page("color")
-- add_color_node() で各クリップにノード追加
-- fusion_comp でタイトル・テキスト追加
-- set_clip_property() でトランスフォーム調整
+- add_color_node() on each clip
+- fusion_comp for titles/text
+- set_clip_property() for transforms
 ```
 
-### Phase 7: 字幕生成
+### Phase 7: Subtitle Generation
 
 ```bash
-python scripts/optimize_srt.py transcript.json --output subtitles.srt
+python scripts/optimize_srt.py transcripts/transcript.json \
+    --output subtitles/subtitles.srt
 ```
 
-最適化内容: 誤変換修正、行長調整（20文字/行）、短すぎる表示の結合、フィラー削除
-
-### Phase 8: レンダリング＋公開素材
+### Phase 8: Render & Export
 
 ```
-MCP操作:
+MCP operations:
 - open_page("deliver")
-- レンダリング設定（H.265 4K YouTube プリセット等）
-- render_project() で開始
+- Configure render settings (H.265 4K YouTube preset, etc.)
+- render_project()
 ```
 
-## ファイル配置規則
+## Common Pitfalls
 
-```
-project/
-├── raw/                    # 収録素材
-│   └── recording_2026-03-28.mov
-├── audio/
-│   └── audio.wav           # 抽出した音声
-├── transcripts/
-│   ├── transcript.json     # Whisper生出力
-│   ├── clean_segments.json # フィラー除去済み
-│   └── fillers_report.txt  # フィラーレポート
-├── edl/
-│   └── clean_edit.edl      # 生成したEDL
-├── subtitles/
-│   └── subtitles.srt       # 最適化済みSRT
-└── exports/
-    └── final_output.mp4    # 最終出力
-```
+| Situation | Wrong approach | Correct approach |
+|-----------|---------------|-----------------|
+| Whisper converts "えー" to kanji | Ignore it | Use broad regex patterns in filler detection |
+| Long silence causes hallucination | Switch models | Try `--condition_on_previous_text False` |
+| EDL timecode drift | Manual fix | Verify fps matches the source |
+| Resolve not responding via MCP | Retry blindly | Confirm Resolve is running + External scripting enabled |
+| Filler removal deletes real content | Trust full automation | Human reviews filler report first |
 
-## よくある失敗パターン
+## Reference
 
-| 状況 | 悪い対応 | 正しい対応 |
-|------|----------|------------|
-| Whisperが「えー」を漢字に変換 | そのまま放置 | フィラーパターンを正規表現で広めに取る |
-| 長い無音でハルシネーション | モデルを変える | `--condition_on_previous_text False` を試す |
-| EDLのタイムコードがズレる | 手動修正 | fps設定を確認、ソースと一致させる |
-| MCP でResolveが応答しない | 何度もリトライ | Resolveが起動中＋External scripting有効を確認 |
-| フィラー除去で内容も消えた | 全自動を信頼 | fillers_report.txt を人間がレビュー |
-
-## 詳細リファレンス
-
-- `scripts/detect_fillers.py` — 日本語フィラー検出スクリプト
-- `scripts/generate_edl.py` — セグメントからEDL生成
-- `scripts/optimize_srt.py` — SRT最適化
-- `references/whisper_tips.md` — Whisper日本語運用Tips
-- `references/resolve_mcp_commands.md` — よく使うMCPコマンド集
-- `templates/project_structure.sh` — プロジェクトディレクトリ初期化スクリプト
-
+- `scripts/detect_fillers.py` — Japanese filler detection with VAD correction
+- `scripts/generate_edl.py` — Clean segments → CMX 3600 EDL
+- `scripts/optimize_srt.py` — SRT optimization
+- `references/whisper_tips.md` — Whisper tips for Japanese
+- `references/resolve_mcp_commands.md` — Common MCP commands
+- `templates/project_structure.sh` — Project directory scaffolding
