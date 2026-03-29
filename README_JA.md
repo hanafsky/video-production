@@ -1,12 +1,23 @@
 # Video Production
 
-コーディング動画・YouTubeコンテンツ向けの動画制作自動化パイプライン。
+撮影した動画から「えーと」「あのー」などの**フィラー（つなぎ言葉）を自動で見つけてカット編集を生成する**ツールです。コーディング動画やYouTubeコンテンツのポストプロダクションを効率化します。
 
-ローカルWhisper文字起こし → フィラー除去（日本語・英語対応、Silero VAD補正） → EDL/SRT生成 → DaVinci Resolve MCP連携。
+## インストール
 
-## 前提環境
+```bash
+npx skills add hanafsky/video-post-production
+```
 
-- macOS + Apple Silicon（24 GB 推奨）
+## できること
+
+- **文字起こし** — Whisperを使って動画の音声をローカルで文字起こし（日本語・英語対応）
+- **フィラー自動検出** — 「えーと」「あのー」「um」「uh」などの不要な言い回しをAIが検出。Silero VADで無音区間も考慮し、誤検出を抑えます
+- **カット編集の自動生成** — フィラーを除いたEDL（編集リスト）やSRT（字幕）を出力
+- **DaVinci Resolve連携** — 生成したEDLをResolveに直接インポート可能（MCP経由または手動）
+
+## 必要なもの
+
+- macOS + Apple Silicon（メモリ24 GB 推奨）
 - Python 3.10〜3.12
 - DaVinci Resolve Studio 18.5+
 - ffmpeg
@@ -16,21 +27,21 @@ pip install openai-whisper opentimelineio srt torch
 brew install ffmpeg
 ```
 
-## クイックスタート
+## 使い方
 
-### 1. プロジェクト作成
+### 1. プロジェクトのひな形を作る
 
 ```bash
 bash skills/templates/project_structure.sh "MyVideo"
 ```
 
-### 2. 音声抽出
+### 2. 動画から音声を抽出する
 
 ```bash
 ffmpeg -i raw/input.mov -vn -acodec pcm_s16le -ar 16000 -ac 1 audio/audio.wav
 ```
 
-### 3. Whisperで文字起こし
+### 3. Whisperで文字起こしする
 
 ```python
 import whisper, json
@@ -42,9 +53,9 @@ with open("transcripts/transcript.json", "w", encoding="utf-8") as f:
     json.dump(result, f, ensure_ascii=False, indent=2)
 ```
 
-### 4. フィラー検出・除去
+### 4. フィラーを検出・除去する
 
-**日本語:**
+**日本語の場合:**
 
 ```bash
 python skills/scripts/detect_fillers.py transcripts/transcript.json \
@@ -52,7 +63,7 @@ python skills/scripts/detect_fillers.py transcripts/transcript.json \
     --output transcripts/clean_segments.json
 ```
 
-**英語:**
+**英語の場合:**
 
 ```bash
 python skills/scripts/detect_fillers_en.py transcripts/transcript.json \
@@ -60,7 +71,7 @@ python skills/scripts/detect_fillers_en.py transcripts/transcript.json \
     --output transcripts/clean_segments.json
 ```
 
-### 5. EDL生成
+### 5. EDLを生成する
 
 ```bash
 python skills/scripts/generate_edl.py transcripts/clean_segments.json \
@@ -69,9 +80,9 @@ python skills/scripts/generate_edl.py transcripts/clean_segments.json \
     --fps 24
 ```
 
-### 6. DaVinci Resolveにインポート
+### 6. DaVinci Resolveにインポートする
 
-Resolve MCP経由またはマニュアルでEDLをインポート。
+Resolve MCP経由、または手動でEDLをインポートしてください。
 
 ## プロジェクト構成
 
@@ -87,7 +98,7 @@ skills/
 │   ├── whisper_tips.md       # Whisper日本語運用Tips
 │   └── resolve_mcp_commands.md
 └── templates/
-    └── project_structure.sh  # プロジェクト雛形作成
+    └── project_structure.sh  # プロジェクトひな形作成
 ```
 
 各動画プロジェクトのディレクトリ構成:
