@@ -1,29 +1,29 @@
 ---
-name: video-production
+name: video-post-production
 description: |
-  Video production automation skill. Integrates local Whisper transcription,
-  Japanese filler-word detection/removal with Silero VAD, EDL/SRT generation,
-  and DaVinci Resolve MCP control. Streamlines the post-production pipeline
-  for coding screencasts (devaslife-style) and YouTube content.
-  Use this skill when the user mentions: video editing, filler removal,
-  transcription, Whisper, EDL, SRT, subtitles, DaVinci Resolve, Resolve MCP,
-  timeline, color grading, rendering, or any recording/editing/publishing task.
+  Video post-production automation skill. Integrates local Whisper transcription,
+  filler-word detection/removal (Japanese & English) with Silero VAD,
+  EDL/SRT generation for any NLE. Optional DaVinci Resolve MCP integration.
+  Streamlines the post-production pipeline for coding screencasts and YouTube content.
+  Use this skill when the user mentions: video editing, post-production,
+  filler removal, transcription, Whisper, EDL, SRT, subtitles, timeline,
+  color grading, rendering, NLE, DaVinci Resolve, Premiere, Final Cut,
+  or any recording/editing/publishing task.
   Also trigger when the user wants to automate post-production workflows,
   remove silence/filler from recordings, or generate subtitles from audio.
 ---
 
-# Video Production Skill
+# Video Post-Production Skill
 
 Automates the post-production pipeline:
-Whisper (local) + Claude Code + DaVinci Resolve MCP.
+Whisper (local) + Claude Code + any NLE (with optional DaVinci Resolve MCP).
 Recording → Transcription → Filler removal → Timeline → Effects → Subtitles → Render.
 
 ## Prerequisites
 
 - **macOS + Apple Silicon** (24 GB Unified Memory — can run large-v3)
-- **DaVinci Resolve Studio 18.5+** (free version lacks external scripting)
 - **Python 3.10–3.12**
-- **DaVinci Resolve MCP** configured in Claude Code
+- **(Optional) DaVinci Resolve Studio 18.5+** with DaVinci Resolve MCP configured in Claude Code
 
 ## Required Packages (first-time setup)
 
@@ -59,11 +59,13 @@ boundaries with Silero VAD + energy analysis.
 
 ### 3. EDL generation uses `scripts/generate_edl.py`
 
-Produces a CMX 3600 EDL from clean segments. Importable by DaVinci Resolve.
+Produces a CMX 3600 EDL from clean segments. Importable by any NLE
+(DaVinci Resolve, Premiere Pro, Final Cut Pro, etc.).
 
-### 4. DaVinci Resolve is controlled via MCP
+### 4. (Optional) DaVinci Resolve via MCP
 
-All Resolve operations go through MCP tools. Never use the Python API directly.
+When Resolve MCP is available, use it for timeline/color/render operations.
+Never use the Resolve Python API directly — always go through MCP.
 
 ### 5. SRT optimization uses `scripts/optimize_srt.py`
 
@@ -147,7 +149,11 @@ python scripts/generate_edl.py transcripts/clean_segments.json \
     --fps 24
 ```
 
-### Phase 5: Import into Resolve (MCP)
+### Phase 5: Import EDL into NLE
+
+Import `edl/clean_edit.edl` into your NLE of choice.
+
+**DaVinci Resolve (via MCP, optional):**
 
 ```
 MCP operations:
@@ -159,7 +165,13 @@ MCP operations:
 Resolve EDL import setting:
 - Project Settings → Conform Options → "Assist using reel names from: Source clip filename"
 
-### Phase 6: Effects & Color Grading (MCP)
+**Other NLEs:** Import the CMX 3600 EDL manually (supported by Premiere Pro, Final Cut Pro, etc.).
+
+### Phase 6: Effects & Color Grading
+
+Apply effects and color grading in your NLE.
+
+**DaVinci Resolve (via MCP, optional):**
 
 ```
 MCP examples:
@@ -177,6 +189,10 @@ python scripts/optimize_srt.py transcripts/transcript.json \
 ```
 
 ### Phase 8: Render & Export
+
+Render from your NLE.
+
+**DaVinci Resolve (via MCP, optional):**
 
 ```
 MCP operations:
